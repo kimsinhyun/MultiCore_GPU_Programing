@@ -13,8 +13,8 @@ void worker(int N, int FILTER_SIZE, float* array_in, float* array_out_parallel, 
 int main(int argc, char** argv) 
 {
   if(argc < 2) std::cout<<"Usage : ./filter num_items"<<std::endl;
-  int N = atoi(argv[1]);      //1073741824
-  int NT=32; //Default value. change it as you like.
+  int N = atoi(argv[1]);      //1073741824  1072693248
+  int NT=16; //Default value. change it as you like.
 
   //0. Initialize
   const int FILTER_SIZE=5;
@@ -48,25 +48,38 @@ int main(int argc, char** argv)
   }
 
   {
-
     //2. parallel 1D filter
     std::chrono::duration<float> diff;
     auto start = std::chrono::steady_clock::now();
     /* TODO: put your own parallelized 1D filter here */
     /****************/
     
-    int *thread_start_index = new int[NT];
-    int block_size = N/NT;
-    std::vector<std::thread> workers;
-    for (int i=0 ; i<NT ; i++){
-      thread_start_index[i] = i*(N/NT);
+    //N=1073741824;
+    int split_num = 2;
+    int *thread_start_index = new int[split_num];
+    int block_size = N/split_num;     //1048576
+    int block_size_thread = block_size/NT; 
+    // std::cout << "block_size: " <<  block_size <<  std::endl;
+    for (int i=0 ; i<split_num ; i++){
+      thread_start_index[i] = i*block_size;
     }
-    for(int i = 0 ; i<NT; i++){
-      workers.push_back(std::thread(worker, N, FILTER_SIZE, array_in, array_out_parallel, k, thread_start_index[i], block_size));
+    // for (int i=0 ; i<split_num ; i++){
+    //   std::cout << i << "th item: " << thread_start_index[i] << std::endl;
+    // }
+    
+    for(int i=0; i<split_num; i++){
+      std::vector<std::thread> workers;
+      for(int j = 0 ; j<NT; j++){
+        std::cout << "i: " << i << ",  j:"<< j << std::endl;
+        workers.push_back(std::thread(worker, N, FILTER_SIZE, array_in, array_out_parallel, k, thread_start_index[i]+block_size_thread*j, block_size_thread));
+      }
+      for(int i=0 ; i<NT ;i++){
+        workers[i].join();
+      }
+
     }
-    for(int i=0 ; i<NT ;i++){
-      workers[i].join();
-    }
+    
+    
 
     /****************/
     /* TODO: put your own parallelized 1D filter here */
@@ -86,6 +99,9 @@ int main(int argc, char** argv)
       }
     }
 
+  // for(int i=0;i<N;i++) {
+  //   std::cout << array_out_parallel[i] << " ";
+  // }
 
     if(error_counts==0) {
       std::cout<<"PASS"<<std::endl;
@@ -97,10 +113,18 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// void worker(int N,int FILTER_SIZE, int thread_num, float* array_in, float* array_out_parallel, const float* k){
-void worker(int N, int FILTER_SIZE, float* array_in, float* array_out_parallel, const float* k, int index,int block_size){
-  // std::cout << "index: " << index << std::endl;
-  for(int i=index; i<index+block_size; i++){
+
+
+
+// for(int i=0;i<N;i++) {
+//       for(int j=0;j<FILTER_SIZE;j++) {
+//         array_out_serial[i] += array_in[i+j] * k[j];
+//       }
+//     }
+void worker(int N, int FILTER_SIZE, float* array_in, float* array_out_parallel, const float* k, int index,int block_size_thread){
+  std::cout << "test worker " << index << std::endl;
+  for(int i=index; i<index+block_size_thread; i++){
+    // std::cout << "i(index): " << i << std::endl;
     for(int j=0; j<FILTER_SIZE; j++){
         array_out_parallel[i] += array_in[i+j] * k[j];
     }
