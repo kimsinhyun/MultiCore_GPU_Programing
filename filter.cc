@@ -14,7 +14,7 @@ int main(int argc, char** argv)
 {
   if(argc < 2) std::cout<<"Usage : ./filter num_items"<<std::endl;
   int N = atoi(argv[1]);      //1073741824
-  int NT=32; //Default value. change it as you like.
+  int NT=16; //Default value. change it as you like.
 
   //0. Initialize
   const int FILTER_SIZE=5;
@@ -92,7 +92,6 @@ int main(int argc, char** argv)
     } else {
       std::cout<<"There are "<<error_counts<<" errors"<<std::endl;
     }
-
   }
   return 0;
 }
