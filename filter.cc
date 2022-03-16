@@ -7,9 +7,11 @@
 #include <vector>
 #include <future>
 
-// void worker(int N,int FILTER_SIZE, int thread_num, float* array_in, float* array_out_serial,  const float* k);
-void worker(int N, int FILTER_SIZE, float* array_in, float* array_out_parallel, const float* k, int index,int block_size);
 
+
+// void worker(int N,int FILTER_SIZE, int thread_num, float* array_in, float* array_out_serial,  const float* k);
+void worker(int N, int FILTER_SIZE, float* array_in, float* array_out_parallel, 
+              const float* k, int* start_index_in_array_in, int block_size_in_thread, int thread_number);
 int main(int argc, char** argv) 
 {
   if(argc < 2) std::cout<<"Usage : ./filter num_items"<<std::endl;
@@ -55,18 +57,43 @@ int main(int argc, char** argv)
     /* TODO: put your own parallelized 1D filter here */
     /****************/
     
-    int *thread_start_index = new int[NT];
-    int block_size = N/NT;
+    //전체 리스트를 N / NT / 1024(임시 숫자) 로 분할할 index들 저장
+    int num_list_pieces = NT*1024; // 32*1024
+
+    // 2차원 배열 생성
+    int** block_start_index = new int*[num_list_pieces];
+    for(int i=0; i < num_list_pieces ; i++){
+      block_start_index[i] = new int [NT];
+    }
+    // 2차원 배열 생성
+
     std::vector<std::thread> workers;
-    for (int i=0 ; i<NT ; i++){
-      thread_start_index[i] = i*(N/NT);
+    int per_size_in_block_start_index = N/num_list_pieces; 
+    int block_size_in_thread = per_size_in_block_start_index/NT;
+    for (int i=0 ; i<num_list_pieces ; i++){
+      // block_start_index[i] = i*(N/NT);
+      block_start_index[i][0] = i*(per_size_in_block_start_index);
+      for(int j = 0 ; j<NT ; j++){
+        block_start_index[i][j] = (block_start_index[i][0] + (per_size_in_block_start_index/NT)*(j) );
+      }
     }
-    for(int i = 0 ; i<NT; i++){
-      workers.push_back(std::thread(worker, N, FILTER_SIZE, array_in, array_out_parallel, k, thread_start_index[i], block_size));
+    for(int i = 0 ; i < 3 ; i++){
+      for(int j = 0 ; j < NT ; j++){
+        std::cout << block_start_index[i][j] << " ";
+      }
+      std::cout << std::endl;
     }
-    for(int i=0 ; i<NT ;i++){
-      workers[i].join();
+    for(int i=0; i < num_list_pieces; i++){
+      for(int j = 0 ; j<NT; j++){
+        workers.push_back(std::thread(worker, 
+                  N, FILTER_SIZE, array_in, array_out_parallel, k, 
+                                                  block_start_index[i], block_size_in_thread, j));
+        // worker(int N, int FILTER_SIZE, float* array_in, float* array_out_parallel, const float* k,
+                                              //  int start_index_in_array_in, int block_size_in_thread){
+      }
+      for(int j=0 ; j<NT ;j++)  workers[j].join();
     }
+      
 
     /****************/
     /* TODO: put your own parallelized 1D filter here */
@@ -97,12 +124,27 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// void worker(int N,int FILTER_SIZE, int thread_num, float* array_in, float* array_out_parallel, const float* k){
-void worker(int N, int FILTER_SIZE, float* array_in, float* array_out_parallel, const float* k, int index,int block_size){
-  // std::cout << "index: " << index << std::endl;
-  for(int i=index; i<index+block_size; i++){
-    for(int j=0; j<FILTER_SIZE; j++){
+// //// void worker(int N,int FILTER_SIZE, int thread_num, float* array_in, float* array_out_parallel, const float* k){
+// void worker(int N, int FILTER_SIZE, float* array_in, float* array_out_parallel, const float* k, int index,int block_size_in_thread){
+//   // std::cout << "index: " << index << std::endl;
+//   for(int i=index; i<index+block_size_in_thread; i++){
+//     for(int j=0; j<FILTER_SIZE; j++){
+//         array_out_parallel[i] += array_in[i+j] * k[j];
+//     }
+//   }
+// }
+
+
+// worker( N, FILTER_SIZE, array_in, array_out_parallel, k, block_start_index[i], block_size_in_thread)
+void worker(int N, int FILTER_SIZE, float* array_in, float* array_out_parallel, 
+              const float* k, int* start_index_in_array_in, int block_size_in_thread, int thread_number){
+    int limit_in_iterate = start_index_in_array_in[0] + block_size_in_thread;
+    // std::cout << "thread_number: " << thread_number << std::endl; 
+    // std::cout << "start_index_in_array_in: " << start_index_in_array_in[thread_number] << std::endl; 
+    // std::cout << "limit_in_iterate: " << limit_in_iterate << std::endl; 
+    for(int i = start_index_in_array_in[thread_number]; i<limit_in_iterate; i++){
+      for(int j=0; j<FILTER_SIZE; j++){
         array_out_parallel[i] += array_in[i+j] * k[j];
-    }
+      }
   }
 }
