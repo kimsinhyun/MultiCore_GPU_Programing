@@ -14,7 +14,7 @@ int main(int argc, char** argv)
 {
   if(argc < 2) std::cout<<"Usage : ./filter num_items"<<std::endl;
   int N = atoi(argv[1]);      //1073741824
-  int NT=16; //Default value. change it as you like.
+  int NT=64; //Default value. change it as you like.
 
   //0. Initialize
   const int FILTER_SIZE=5;
@@ -100,8 +100,9 @@ int main(int argc, char** argv)
 void worker(int N, int FILTER_SIZE, float* array_in, float* array_out_parallel, const float* k, int index,int block_size){
   // std::cout << "index: " << index << std::endl;
   for(int i=index; i<index+block_size; i++){
-    for(int j=0; j<FILTER_SIZE; j++){
-        array_out_parallel[i] += array_in[i+j] * k[j];
-    }
+    // for(int j=0; j<FILTER_SIZE; j++){
+    //     array_out_parallel[i] += array_in[i+j] * k[j];
+    // }
+    array_out_parallel[i] += (array_in[i+0] * k[0]) + (array_in[i+1] * k[1])  + (array_in[i+2] * k[2]) +  (array_in[i+3] * k[3]) +  (array_in[i+4] * k[4]);
   }
 }
