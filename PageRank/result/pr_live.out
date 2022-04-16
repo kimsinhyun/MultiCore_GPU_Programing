@@ -1,0 +1,147 @@
+Read Time:           6.83829
+EL size : 68993773
+alloc edgelist 68993773
+alloc edgelist 68993773
+Build Time:          0.47107
+directed constructor
+Preprocessing Time : 0.00001
+trial Time:          0.60776
+Printing Top5 Ranks
+8737:0.00013974
+2914:0.000123162
+18964:8.51439e-05
+1220:7.48185e-05
+2409:7.04474e-05
+ pp answer[0]: 8737, 0.000142, res[0] = 8737, 0.000140
+ pp answer[1]: 2914, 0.000125, res[1] = 2914, 0.000123
+ pp answer[2]: 18964, 0.000086, res[2] = 18964, 0.000085
+ pp answer[3]: 1220, 0.000076, res[3] = 1220, 0.000075
+ pp answer[4]: 2409, 0.000072, res[4] = 2409, 0.000070
+PASS!! your total pass: 5
+Preprocessing Time : 0.00001
+trial Time:          0.60337
+Printing Top5 Ranks
+8737:0.000139708
+2914:0.00012382
+18964:8.53382e-05
+1220:7.50327e-05
+2409:7.05115e-05
+ pp answer[0]: 8737, 0.000142, res[0] = 8737, 0.000140
+ pp answer[1]: 2914, 0.000125, res[1] = 2914, 0.000124
+ pp answer[2]: 18964, 0.000086, res[2] = 18964, 0.000085
+ pp answer[3]: 1220, 0.000076, res[3] = 1220, 0.000075
+ pp answer[4]: 2409, 0.000072, res[4] = 2409, 0.000071
+PASS!! your total pass: 5
+Preprocessing Time : 0.00001
+trial Time:          0.62461
+Printing Top5 Ranks
+8737:0.000139883
+2914:0.000123681
+18964:8.51448e-05
+1220:7.4919e-05
+2409:7.06391e-05
+ pp answer[0]: 8737, 0.000142, res[0] = 8737, 0.000140
+ pp answer[1]: 2914, 0.000125, res[1] = 2914, 0.000124
+ pp answer[2]: 18964, 0.000086, res[2] = 18964, 0.000085
+ pp answer[3]: 1220, 0.000076, res[3] = 1220, 0.000075
+ pp answer[4]: 2409, 0.000072, res[4] = 2409, 0.000071
+PASS!! your total pass: 5
+Preprocessing Time : 0.00001
+trial Time:          0.61938
+Printing Top5 Ranks
+8737:0.000139738
+2914:0.000123575
+18964:8.52498e-05
+1220:7.49481e-05
+2409:7.04729e-05
+ pp answer[0]: 8737, 0.000142, res[0] = 8737, 0.000140
+ pp answer[1]: 2914, 0.000125, res[1] = 2914, 0.000124
+ pp answer[2]: 18964, 0.000086, res[2] = 18964, 0.000085
+ pp answer[3]: 1220, 0.000076, res[3] = 1220, 0.000075
+ pp answer[4]: 2409, 0.000072, res[4] = 2409, 0.000070
+PASS!! your total pass: 5
+Preprocessing Time : 0.00001
+trial Time:          0.60908
+Printing Top5 Ranks
+8737:0.000139986
+2914:0.000123535
+18964:8.5466e-05
+1220:7.49931e-05
+2409:7.05459e-05
+ pp answer[0]: 8737, 0.000142, res[0] = 8737, 0.000140
+ pp answer[1]: 2914, 0.000125, res[1] = 2914, 0.000124
+ pp answer[2]: 18964, 0.000086, res[2] = 18964, 0.000085
+ pp answer[3]: 1220, 0.000076, res[3] = 1220, 0.000075
+ pp answer[4]: 2409, 0.000072, res[4] = 2409, 0.000071
+PASS!! your total pass: 5
+Preprocessing Time : 0.00001
+trial Time:          0.61342
+Printing Top5 Ranks
+8737:0.000136778
+2914:0.000123746
+18964:8.53832e-05
+1220:7.47954e-05
+2409:7.04992e-05
+ pp answer[0]: 8737, 0.000142, res[0] = 8737, 0.000137
+ pp answer[1]: 2914, 0.000125, res[1] = 2914, 0.000124
+ pp answer[2]: 18964, 0.000086, res[2] = 18964, 0.000085
+ pp answer[3]: 1220, 0.000076, res[3] = 1220, 0.000075
+ pp answer[4]: 2409, 0.000072, res[4] = 2409, 0.000070
+PASS!! your total pass: 5
+Preprocessing Time : 0.00001
+trial Time:          0.60896
+Printing Top5 Ranks
+8737:0.000139977
+2914:0.000123779
+18964:8.53625e-05
+1220:7.49765e-05
+2409:7.05142e-05
+ pp answer[0]: 8737, 0.000142, res[0] = 8737, 0.000140
+ pp answer[1]: 2914, 0.000125, res[1] = 2914, 0.000124
+ pp answer[2]: 18964, 0.000086, res[2] = 18964, 0.000085
+ pp answer[3]: 1220, 0.000076, res[3] = 1220, 0.000075
+ pp answer[4]: 2409, 0.000072, res[4] = 2409, 0.000071
+PASS!! your total pass: 5
+Preprocessing Time : 0.00001
+trial Time:          0.61304
+Printing Top5 Ranks
+8737:0.000139855
+2914:0.000123504
+18964:8.52511e-05
+1220:7.50468e-05
+2409:7.044e-05
+ pp answer[0]: 8737, 0.000142, res[0] = 8737, 0.000140
+ pp answer[1]: 2914, 0.000125, res[1] = 2914, 0.000124
+ pp answer[2]: 18964, 0.000086, res[2] = 18964, 0.000085
+ pp answer[3]: 1220, 0.000076, res[3] = 1220, 0.000075
+ pp answer[4]: 2409, 0.000072, res[4] = 2409, 0.000070
+PASS!! your total pass: 5
+Preprocessing Time : 0.00001
+trial Time:          0.62651
+Printing Top5 Ranks
+8737:0.000139922
+2914:0.000123844
+18964:8.53643e-05
+1220:7.48662e-05
+2409:7.05468e-05
+ pp answer[0]: 8737, 0.000142, res[0] = 8737, 0.000140
+ pp answer[1]: 2914, 0.000125, res[1] = 2914, 0.000124
+ pp answer[2]: 18964, 0.000086, res[2] = 18964, 0.000085
+ pp answer[3]: 1220, 0.000076, res[3] = 1220, 0.000075
+ pp answer[4]: 2409, 0.000072, res[4] = 2409, 0.000071
+PASS!! your total pass: 5
+Preprocessing Time : 0.00001
+trial Time:          0.61215
+Printing Top5 Ranks
+8737:0.000140213
+2914:0.000123704
+18964:8.5093e-05
+1220:7.51093e-05
+2409:7.02397e-05
+ pp answer[0]: 8737, 0.000142, res[0] = 8737, 0.000140
+ pp answer[1]: 2914, 0.000125, res[1] = 2914, 0.000124
+ pp answer[2]: 18964, 0.000086, res[2] = 18964, 0.000085
+ pp answer[3]: 1220, 0.000076, res[3] = 1220, 0.000075
+ pp answer[4]: 2409, 0.000072, res[4] = 2409, 0.000070
+PASS!! your total pass: 5
+PageRank End. Your Pass Score: 10, Mininum Runtime: 0.603373
