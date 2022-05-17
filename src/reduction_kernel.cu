@@ -200,91 +200,55 @@ __global__ void reduce6 (const int* const d_idata, int* const d_odata)
     if (tid == 0) d_odata[blockIdx.x] = sdata[0];
 }
 
-void reduce6_switch(const int* const d_idata, int* const d_odata, int block_num, int blockdim){
-    std::cout << "block_size: " << block_num << std::endl;
+void reduce6_switch(const int* const d_idata, int* const d_odata, int block_num, int blockdim ){
+    std::cout << "cuda block_num: " << block_num << std::endl;
     switch(block_num){
         case 512:
-            reduce6<512><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);          break;
+            reduce6<512><<<block_num, blockdim, SM_SIZE>>>(d_idata, d_odata);          break;
         case 256:
-            reduce6<256><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);          break;
+            reduce6<256><<<block_num, blockdim, SM_SIZE>>>(d_idata, d_odata);          break;
         case 128:
-            reduce6<128><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);          break;
+            reduce6<128><<<block_num, blockdim, SM_SIZE>>>(d_idata, d_odata);          break;
         case 64:
-            reduce6<64><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);           break;
+            reduce6<64><<<block_num, blockdim, SM_SIZE>>>(d_idata, d_odata);           break;
         case 32:
-            reduce6<32><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);           break;
+            reduce6<32><<<block_num, blockdim, SM_SIZE>>>(d_idata, d_odata);           break;
         case 16:
-            reduce6<16><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);           break;
+            reduce6<16><<<block_num, blockdim, SM_SIZE>>>(d_idata, d_odata);           break;
         case 8:
-            reduce6<8><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);            break;
+            reduce6<8><<<block_num, blockdim, SM_SIZE>>>(d_idata, d_odata);            break;
         case 4:
-            reduce6<4><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);            break;
+            reduce6<4><<<block_num, blockdim, SM_SIZE>>>(d_idata, d_odata);            break;
         case 2:
-            reduce6<2><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);            break;
+            reduce6<2><<<block_num, blockdim, SM_SIZE>>>(d_idata, d_odata);            break;
         case 1:
-            reduce6<1><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);            break;
+            reduce6<1><<<block_num, blockdim, SM_SIZE>>>(d_idata, d_odata);            break;
     }
 }
 
 // void reduce_optimize(const int* const g_idata, int* const g_odata, const int* const d_idata, int* const d_odata, const int n) {
 //     int size = n;
-//     int block_size = 256;
-//     dim3 block(block_size,1,1);
-//     // int threads = ((size-1) / block.x)/2 +1; 
-//     int threads = ((size-1) / block.x) +1; 
-//     dim3 grid(threads, 1);
-//     std::cout << "threads: " << threads << std::endl;
-//     //=========== reduce 1~3 ===========
-//     reduce1<<< grid, block, SM_SIZE >>>(d_idata, d_odata);
-//     for (int i = size/block_size ; i / block_size > 1; i /= block_size){
-//         reduce1<<< grid, block, SM_SIZE >>>(d_odata, d_odata);
+//     int block_num = 256;
+//     int blockdim = ((size-1) / block_num) +1; 
+//     // int blockdim = ((size-1) / block_num)/2 +1; 
+//     reduce1<<< blockdim, block_num, SM_SIZE >>>(d_idata, d_odata);
+//     for (int i = block_num ; i >= block_num; i /=2){
+//         std::cout << "i: " << i << std::endl;
+//         reduce1<<< blockdim, i, SM_SIZE >>>(d_odata, d_odata);
 //     }
-//     reduce1<<< 1, block, SM_SIZE >>>(d_odata, d_odata);
-
-//     //=========== reduce 4~5 ===========
-//     // reduce5<<< grid, block, SM_SIZE >>>(d_idata, d_odata);
-//     // for (int i = threads ; i / block_size / 2 > 1; i /= (block_size*2)){
-//     //     reduce5<<< grid, block, SM_SIZE >>>(d_odata, d_odata);
-//     // }
-//     // reduce5<<< 1, block, SM_SIZE >>>(d_odata, d_odata);
-
-//     //=========== reduce6 ===========
-//     // reduce6_switch(d_idata, d_odata, block_size, threads, block);
-//     // for (int i = threads ; i / block_size / 2 > 1; i /= (block_size*2)){
-//     //     reduce6_switch(d_odata, d_odata, block_size, i, block);
-//     // }
-//     // reduce6_switch(d_odata, d_odata, block_size, 1, block);
+//     reduce1<<< 1, block_num, SM_SIZE >>>(d_odata, d_odata);
 // }
-
 
 void reduce_optimize(const int* const g_idata, int* const g_odata, const int* const d_idata, int* const d_odata, const int n) {
     int size = n;
-    int block_num = 256;
-    int blockdim = ((size-1) / block_num) +1; 
-    // int blockdim = ((size-1) / block_num)/2 +1; 
-    // reduce5<<< blockdim, block_num, SM_SIZE >>>(d_idata, d_odata);
-    // for (int i = blockdim/block_num ; i > 1 ; i /=block_num){
-    //     if(i >= block_num)
-    //         reduce5<<< i, block_num, SM_SIZE >>>(d_odata, d_odata);
-    //     else
-    //         reduce5<<< blockdim, block_num, SM_SIZE >>>(d_odata, d_odata);
+    int block_dim = 256;
+    // int block_num = ((size-1) / block_dim) +1; 
+    int block_num = ((size-1) / block_dim)/2 +1;
+    cout <<  "block_num: " << block_num << endl;
+    // reduce5<<< block_num, block_dim, SM_SIZE >>>(d_idata, d_odata);
+    // for (int i = block_num/2 ; i >= block_dim; i =sqrt(i)){
+    //     std::cout << "i: " << i << std::endl;
+    //     reduce5<<< i, block_dim, SM_SIZE >>>(d_odata, d_odata);
     // }
-    // reduce5<<< 1, block_num, SM_SIZE >>>(d_odata, d_odata);
-
-    reduce1<<< blockdim, block_num, SM_SIZE >>>(d_idata, d_odata);
-    for (int i = block_num ; i >= block_num; i /=2){
-        reduce1<<< blockdim, i, SM_SIZE >>>(d_odata, d_odata);
-    }
-    reduce1<<< 1, block_num, SM_SIZE >>>(d_odata, d_odata);
-
-
-    // reduce6_switch(d_idata, d_odata, block_num, blockdim);
-    // for (int i = blockdim/block_num ; i > 1 ; i /=block_num){
-    //     if(i >= block_num)
-    //         reduce6_switch(d_odata, d_odata, block_num, blockdim);
-    //     else
-    //         reduce6_switch(d_odata, d_odata, block_num, blockdim);
-    // }
-    // reduce6_switch(d_odata, d_odata, block_num, blockdim);
-
+    // reduce5<<< 1, block_dim, SM_SIZE >>>(d_odata, d_odata);
 }
