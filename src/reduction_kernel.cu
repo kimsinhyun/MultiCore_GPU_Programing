@@ -201,8 +201,8 @@ __global__ void reduce6 (const int* const d_idata, int* const d_odata)
 }
 
 void reduce6_switch(const int* const d_idata, int* const d_odata, int block_num, int blockdim ){
-    std::cout << "cuda block_num: " << block_num << std::endl;
-    switch(block_num){
+    std::cout << "cuda block_num: " << blockdim << std::endl;
+    switch(blockdim){
         case 512:
             reduce6<512><<<block_num, blockdim, SM_SIZE>>>(d_idata, d_odata);          break;
         case 256:
@@ -241,14 +241,23 @@ void reduce6_switch(const int* const d_idata, int* const d_odata, int block_num,
 
 void reduce_optimize(const int* const g_idata, int* const g_odata, const int* const d_idata, int* const d_odata, const int n) {
     int size = n;
-    int block_dim = 256;
+    int block_dim = 32;
     // int block_num = ((size-1) / block_dim) +1; 
     int block_num = ((size-1) / block_dim)/2 +1;
-    cout <<  "block_num: " << block_num << endl;
+    // cout <<  "block_num: " << block_num << endl;
+
     // reduce5<<< block_num, block_dim, SM_SIZE >>>(d_idata, d_odata);
     // for (int i = block_num/2 ; i >= block_dim; i =sqrt(i)){
     //     std::cout << "i: " << i << std::endl;
     //     reduce5<<< i, block_dim, SM_SIZE >>>(d_odata, d_odata);
     // }
     // reduce5<<< 1, block_dim, SM_SIZE >>>(d_odata, d_odata);
+
+
+    reduce6_switch(d_idata, d_odata, block_num, block_dim);
+    for (int i = block_num/2 ; i >= block_dim; i =sqrt(i)){
+        // std::cout << "i: " << i << std::endl;
+        reduce6_switch(d_odata, d_odata, i, block_dim);
+    }
+    reduce6_switch(d_odata, d_odata, 1, block_dim);
 }
