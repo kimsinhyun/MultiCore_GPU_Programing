@@ -10,6 +10,8 @@
 
 #define SM_SIZE 1024
 
+using namespace std;
+
 void allocateDeviceMemory(void** M, int size)
 {
     cudaError_t err = cudaMalloc(M, size);
@@ -113,54 +115,49 @@ void reduce4(const int* const d_idata, int* const d_odata){
         d_odata[blockIdx.x] = sdata[0];
 }
 
-__device__ void reduce5_warp(volatile int* shmem_ptr, int t) {
-	shmem_ptr[t] += shmem_ptr[t + 32];
-	shmem_ptr[t] += shmem_ptr[t + 16];
-	shmem_ptr[t] += shmem_ptr[t + 8];
-	shmem_ptr[t] += shmem_ptr[t + 4];
-	shmem_ptr[t] += shmem_ptr[t + 2];
-	shmem_ptr[t] += shmem_ptr[t + 1];
+__device__ void unroll(volatile int* sdata, int t) {
+	sdata[t] += sdata[t + 32];
+	sdata[t] += sdata[t + 16];
+	sdata[t] += sdata[t + 8];
+	sdata[t] += sdata[t + 4];
+	sdata[t] += sdata[t + 2];
+	sdata[t] += sdata[t + 1];
 }
 
 
 __global__ void reduce5(const int* const d_idata, int* const d_odata) {
 	__shared__ int sdata[SM_SIZE];
 
-	int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	int tid = threadIdx.x;
 
 	int i = blockIdx.x * (blockDim.x * 2) + threadIdx.x;
 
-	sdata[threadIdx.x] = d_idata[i] + d_idata[i + blockDim.x];
+	sdata[tid] = d_idata[i] + d_idata[i + blockDim.x];
 	__syncthreads();
 	for (int s = blockDim.x / 2; s > 32; s >>= 1) {
-		if (threadIdx.x < s) {
-			sdata[threadIdx.x] += sdata[threadIdx.x + s];
+		if (tid < s) {
+			sdata[tid] += sdata[tid + s];
 		}
 		__syncthreads();
 	}
 
-	if (threadIdx.x < 32) {
-		reduce5_warp(sdata, threadIdx.x);
+	if (tid < 32) {
+		unroll(sdata, tid);
 	}
 
-	if (threadIdx.x == 0) {
+	if (tid == 0) {
 		d_odata[blockIdx.x] = sdata[0];
 	}
 }
 
-// template <unsigned int blockSize>
-// __device__ void reduce6_warp(volatile float* sdata, int tid) {
-    
-// }
 
 template <unsigned int blockSize>
 __global__ void reduce6 (const int* const d_idata, int* const d_odata)
 {
-	__shared__ int sdata[SM_SIZE];
+	extern __shared__ int sdata[];
 
-	int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	int tid = threadIdx.x;
 	int i = blockIdx.x * (blockDim.x * 2) + threadIdx.x;
-    // unsigned int gridSize = blockSize*2*blockDim.x;
 
 	sdata[threadIdx.x] = d_idata[i] + d_idata[i + blockDim.x];
 	__syncthreads();
@@ -170,15 +167,10 @@ __global__ void reduce6 (const int* const d_idata, int* const d_odata)
 		}
 		__syncthreads();
 	}
-    // Unroll for loop for all possible cases of block size. Optimization 4.
-    // Sync threads after step of the reduction.
-    // Use sequential addressing to avoid memory bank conflicts. Optimization 2.
     if (blockSize >= 512) {if (tid < 256) { sdata[tid] = (sdata[tid] + sdata[tid+256]);} __syncthreads(); } 
     if (blockSize >= 256) {if (tid < 128) { sdata[tid] = (sdata[tid] + sdata[tid+128]);} __syncthreads(); } 
     if (blockSize >= 128) {if (tid < 64) {  sdata[tid] = (sdata[tid] + sdata[tid+64]);}  __syncthreads(); } 
 
-    // We're down to a single warp and no longer need to syncthreads
-    // Reduce for a single warp
     if (tid < 32){
         if(blockSize >= 64) {
              sdata[tid] = (sdata[tid] + sdata[tid+32]);
@@ -208,53 +200,91 @@ __global__ void reduce6 (const int* const d_idata, int* const d_odata)
     if (tid == 0) d_odata[blockIdx.x] = sdata[0];
 }
 
+void reduce6_switch(const int* const d_idata, int* const d_odata, int block_num, int blockdim){
+    std::cout << "block_size: " << block_num << std::endl;
+    switch(block_num){
+        case 512:
+            reduce6<512><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);          break;
+        case 256:
+            reduce6<256><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);          break;
+        case 128:
+            reduce6<128><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);          break;
+        case 64:
+            reduce6<64><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);           break;
+        case 32:
+            reduce6<32><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);           break;
+        case 16:
+            reduce6<16><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);           break;
+        case 8:
+            reduce6<8><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);            break;
+        case 4:
+            reduce6<4><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);            break;
+        case 2:
+            reduce6<2><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);            break;
+        case 1:
+            reduce6<1><<<blockdim, block_num, SM_SIZE>>>(d_idata, d_odata);            break;
+    }
+}
+
+// void reduce_optimize(const int* const g_idata, int* const g_odata, const int* const d_idata, int* const d_odata, const int n) {
+//     int size = n;
+//     int block_size = 256;
+//     dim3 block(block_size,1,1);
+//     // int threads = ((size-1) / block.x)/2 +1; 
+//     int threads = ((size-1) / block.x) +1; 
+//     dim3 grid(threads, 1);
+//     std::cout << "threads: " << threads << std::endl;
+//     //=========== reduce 1~3 ===========
+//     reduce1<<< grid, block, SM_SIZE >>>(d_idata, d_odata);
+//     for (int i = size/block_size ; i / block_size > 1; i /= block_size){
+//         reduce1<<< grid, block, SM_SIZE >>>(d_odata, d_odata);
+//     }
+//     reduce1<<< 1, block, SM_SIZE >>>(d_odata, d_odata);
+
+//     //=========== reduce 4~5 ===========
+//     // reduce5<<< grid, block, SM_SIZE >>>(d_idata, d_odata);
+//     // for (int i = threads ; i / block_size / 2 > 1; i /= (block_size*2)){
+//     //     reduce5<<< grid, block, SM_SIZE >>>(d_odata, d_odata);
+//     // }
+//     // reduce5<<< 1, block, SM_SIZE >>>(d_odata, d_odata);
+
+//     //=========== reduce6 ===========
+//     // reduce6_switch(d_idata, d_odata, block_size, threads, block);
+//     // for (int i = threads ; i / block_size / 2 > 1; i /= (block_size*2)){
+//     //     reduce6_switch(d_odata, d_odata, block_size, i, block);
+//     // }
+//     // reduce6_switch(d_odata, d_odata, block_size, 1, block);
+// }
+
+
 void reduce_optimize(const int* const g_idata, int* const g_odata, const int* const d_idata, int* const d_odata, const int n) {
     int size = n;
-    int block_size = 256;
-    dim3 block(block_size,1,1);
-    int threads = ((size-1) / block.x)/2 +1; 
-    // int threads = ((size-1) / block.x) +1; 
-    dim3 grid(threads, 1);
-    std::cout << "threads: " << threads << std::endl;
-    // reduce 1~5
-    reduce5<<< grid, block, SM_SIZE >>>(d_idata, d_odata);
-    for (int i = size/block_size ; i / block_size > 1; i /= block_size){
-        reduce5<<< grid, block, SM_SIZE >>>(d_odata, d_odata);
-    }
-    reduce5<<< 1, block, SM_SIZE >>>(d_odata, d_odata);
-
-    //=========== reduce6 ===========
-    // switch(threads){
-    //     case 512:
-    //         reduce6<512><<<grid, block, SM_SIZE>>>(d_idata, d_odata);
-    //         break;
-    //     case 256:
-    //         reduce6<256><<<grid, block, SM_SIZE>>>(d_idata, d_odata);
-    //         break;
-    //     case 128:
-    //         reduce6<128><<<grid, block, SM_SIZE>>>(d_idata, d_odata);
-    //         break;
-    //     case 64:
-    //         reduce6<64><<<grid, block, SM_SIZE>>>(d_idata, d_odata);
-    //         break;
-    //     case 32:
-    //         reduce6<32><<<grid, block, SM_SIZE>>>(d_idata, d_odata);
-    //         break;
-    //     case 16:
-    //         reduce6<16><<<grid, block, SM_SIZE>>>(d_idata, d_odata);
-    //         break;
-    //     case 8:
-    //         reduce6<8><<<grid, block, SM_SIZE>>>(d_idata, d_odata);
-    //         break;
-    //     case 4:
-    //         reduce6<4><<<grid, block, SM_SIZE>>>(d_idata, d_odata);
-    //         break;
-    //     case 2:
-    //         reduce6<2><<<grid, block, SM_SIZE>>>(d_idata, d_odata);
-    //         break;
-    //     case 1:
-    //         reduce6<1><<<grid, block, SM_SIZE>>>(d_idata, d_odata);
-    //         break;
+    int block_num = 256;
+    int blockdim = ((size-1) / block_num) +1; 
+    // int blockdim = ((size-1) / block_num)/2 +1; 
+    // reduce5<<< blockdim, block_num, SM_SIZE >>>(d_idata, d_odata);
+    // for (int i = blockdim/block_num ; i > 1 ; i /=block_num){
+    //     if(i >= block_num)
+    //         reduce5<<< i, block_num, SM_SIZE >>>(d_odata, d_odata);
+    //     else
+    //         reduce5<<< blockdim, block_num, SM_SIZE >>>(d_odata, d_odata);
     // }
+    // reduce5<<< 1, block_num, SM_SIZE >>>(d_odata, d_odata);
+
+    reduce1<<< blockdim, block_num, SM_SIZE >>>(d_idata, d_odata);
+    for (int i = block_num ; i >= block_num; i /=2){
+        reduce1<<< blockdim, i, SM_SIZE >>>(d_odata, d_odata);
+    }
+    reduce1<<< 1, block_num, SM_SIZE >>>(d_odata, d_odata);
+
+
+    // reduce6_switch(d_idata, d_odata, block_num, blockdim);
+    // for (int i = blockdim/block_num ; i > 1 ; i /=block_num){
+    //     if(i >= block_num)
+    //         reduce6_switch(d_odata, d_odata, block_num, blockdim);
+    //     else
+    //         reduce6_switch(d_odata, d_odata, block_num, blockdim);
+    // }
+    // reduce6_switch(d_odata, d_odata, block_num, blockdim);
 
 }
