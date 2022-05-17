@@ -1,0 +1,16 @@
+=====================================
+             Sum Reduction           
+=====================================
+The size of Sequence: 16777216
+=====================================
+
+Read input file(/nfs/home/mgp2022_data/hw6/input_16777216.txt)...
+Read output file(/nfs/home/mgp2022_data/hw6/output_16777216.txt)...
+
+Run your solution...
+
+temp: 0
+temptemp: 256
+reduce_optimal took: 1.948192 msec 
+Correct
+
