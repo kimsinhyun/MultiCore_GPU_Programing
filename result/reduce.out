@@ -9,13 +9,13 @@ Read output file(/nfs/home/mgp2022_data/hw6/output_16777216.txt)...
 
 Run your solution...
 
-block_num: 262144
-cuda block_num: 32
-i: 131072
-cuda block_num: 32
-i: 362
-cuda block_num: 32
-cuda block_num: 32
-reduce_optimal took: 1.041568 msec 
+block_num: 32768
+block_num / block_dim: 512
+cuda block_num: 256
+i: 32768
+size/i: 512
+cuda block_num: 256
+cuda block_num: 256
+reduce_optimal took: 0.304800 msec 
 Correct
 
