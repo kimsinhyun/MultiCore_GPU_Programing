@@ -131,22 +131,24 @@ void vgg16_cuda::predict(int batch) {
     conv(d_input_padded, d_C1_1_feature_map, d_conv1_1_weight, d_conv1_1_bias, batch, 34, 3, 64, 3, ceil(32/32), 32); // input_size 34, input channel 3, output channel 64, filter size 3
     relu(d_C1_1_feature_map, batch, 64, 32, (32/32), 32);            // channel 64, input size 32
     padding(d_C1_1_feature_map, d_C1_1_feature_map_padded, batch, 64, 32, 1, ceil(32/32), 32); // input channel 64, input size 32, pad size 1
- // std::cout << "S1_channel: " << S1_channel << std::endl;
-    std::cout << "C1_2_size: " << C1_2_size << std::endl;
-    std::cout << "conv1_2_in_channel: " << conv1_2_in_channel << std::endl;
-    std::cout << "conv1_2_out_channel: " << conv1_2_out_channel << std::endl;
-    std::cout << "ceil(C1_2_size/TILE_WIDTH_1): " << ceil(16/32) << std::endl;
-    
-    // conv(d_input_padded, d_C1_1_feature_map, d_conv1_1_weight, d_conv1_1_bias, batch, 34, 3, 64, 3, ceil(32/32), 32); // input_size 34, input channel 3, output channel 64, filter size 3
     conv(d_C1_1_feature_map_padded, d_C1_2_feature_map, d_conv1_2_weight, d_conv1_2_bias, batch, 34, 64, 64, 3, ceil(32/32), 32); // input_size 34, input channel 64, output channel 64, filter size 3
     relu(d_C1_2_feature_map, batch, 64, 32, ceil(32/32), 32);            // channel 64, input size 32
     pool(d_C1_2_feature_map, d_S1_feature_map , batch, 64, 16, ceil(16/16), 16); // pooling 후 image size 32 -> 16
-    test_print_sinhyun(d_S1_feature_map, 128*64*16*16);
+    // test_print_sinhyun(d_S1_feature_map, 128*64*16*16);
 
 
-
-    padding(d_S1_feature_map,d_S1_feature_map_padded, batch, 64, 16, 1, (16/16),  16); // channel 3 ; input_size 32, pad_size 1, grid width 1, tile width
-
+    std::cout << "C2_1_size: " << C2_1_size << std::endl;
+    padding(d_S1_feature_map, d_S1_feature_map_padded, batch, 64, 16, 1, (16/16), 16);      // channel 64 ; input_size 32, pad_size 1, grid width 1, tile width 16
+    conv(d_S1_feature_map_padded, d_C2_1_feature_map, d_conv2_1_weight, d_conv2_1_bias, batch, 18, 64, 64, 3, ceil(16/16), 16); // input_size 18, input channel 64, output channel 64, filter size 3, tile size 16
+    relu(d_C2_1_feature_map, batch, 64, 16, ceil(16/16), 16);                               // channel 64, input size 16, tile size 16
+    padding(d_C2_1_feature_map, d_C2_1_feature_map_padded, batch, 64, 16, 1, (16/16), 16);  // channel 64 ; input_size 32, pad_size 1, grid width 1, tile width 16
+    conv(d_C2_1_feature_map_padded, d_C2_2_feature_map, d_conv2_2_weight, d_conv2_2_bias, batch, 18, 64, 64, 3, ceil(16/16), 16); // input_size 18, input channel 64, output channel 64, filter size 3, tile size 16
+    relu(d_C2_2_feature_map, batch, 64, 16, ceil(16/16), 16);
+    pool(d_C2_2_feature_map, d_S2_feature_map , batch, 128, 8, ceil(8/8), 8); // pooling 후 image size 32 -> 16
+    std::cout << "S2_channel: " << S2_channel << std::endl;
+    std::cout << "S2_size: " << S2_size << std::endl;
+    test_print_sinhyun(d_C2_2_feature_map, 128*128*8*8);
+    // pool(d_C2_2_feature_map, d_S2_feature_map , batch, 64, 16, ceil(16/16), 16); // pooling 후 image size 32 -> 16
 
     //////////BLOCK 1/////////////////////////////////
     // TODO: Implement pad
