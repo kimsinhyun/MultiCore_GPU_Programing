@@ -83,7 +83,7 @@ __global__ void conv_kernel(float* input, float* output, float* weight, float* b
         val += input[input_index + 2] * weight[kernel_base + 2];
         val += input[input_index + 1*W + 0] * weight[kernel_base + 1*filter_size];
         val += input[input_index + 1*W + 1] * weight[kernel_base + 1*filter_size + 1];
-        val += input[input_index + 1*W + 2] * weight[kernel_base + 1*filter_size + 2];
+        val += input[input_index + 1*W + 2] * weight[kernel_base + 1*filter_size + 2];0
         val += input[input_index + 2*W + 0] * weight[kernel_base + 2*filter_size];
         val += input[input_index + 2*W + 1] * weight[kernel_base + 2*filter_size + 1];
         val += input[input_index + 2*W + 2] * weight[kernel_base + 2*filter_size + 2];
@@ -139,10 +139,36 @@ void pool(float* input, float* output,int batch, int input_channel, int input_si
     pool_kernel<<<dimGrid, dimBlock>>>(input, output, input_channel, input_size,input_size, W_grid, tile_size);
 }
 
+__global__ void fc_kernel(float* input, float* output, float* weight, float* bias, int input_C, int output_C)
+{
+    int b = blockIdx.x; // mini batch
+    int c = blockIdx.y; // output channel index
+
+    float val = 0;
+    for (int ic=0; ic<input_C; ic++)
+        val += weight[c * input_C + ic] * input[b * input_C + ic];
+
+    output[b * output_C + c] = bias[c] + val;
+}
+
+void fc(float* input, float* output, float* weight, float* bias, int batch, int input_C, int output_C){
+    dim3 dimGrid(batch, output_C, 1); 
+    dim3 dimBlock(1);
+    fc_kernel<<<dimGrid, dimBlock>>>(input, output, weight, bias,input_C, output_C);
+}
+
+
 void vgg16_cuda::predict(int batch) {
     normalize(d_image, d_input, batch, 3, 32, ceil(32/32), 32);        // channel 3 ; input_size 32
 
     //////////BLOCK 1/////////////////////////////////
+    // TODO: Implement pad
+    // TODO: Implement conv1_1
+    // TODO: Implement relu
+    // TODO: Implement pad
+    // TODO: Implement conv1_2
+    // TODO: Implement relu
+    // TODO: Implement pool
     padding(d_input,d_input_padded, batch, 3, 32, 1, ceil(32/32), 32); // channel 3 ; input_size 32, pad_size 1, grid width 1, tile width 32
     conv(d_input_padded, d_C1_1_feature_map, d_conv1_1_weight, d_conv1_1_bias, batch, 34, 3, 64, 3, ceil(32/32), 32); // input_size 34, input channel 3, output channel 64, filter size 3
     relu(d_C1_1_feature_map, batch, 64, 32, ceil(32/32), 32);            // channel 64, input size 32
@@ -152,6 +178,13 @@ void vgg16_cuda::predict(int batch) {
     pool(d_C1_2_feature_map, d_S1_feature_map , batch, 64, 16, ceil(16/16), 16); // input channel 64, output size 16       pooling 후 image size 32 -> 16
 
     //////////BLOCK 2/////////////////////////////////
+    // TODO: Implement pad
+    // TODO: Implement conv2_1
+    // TODO: Implement relu
+    // TODO: Implement pad
+    // TODO: Implement conv2_2
+    // TODO: Implement relu
+    // TODO: Implement pool
     padding(d_S1_feature_map, d_S1_feature_map_padded, batch, 64, 16, 1, ceil(16/16), 16);      // channel 64 ; input_size 16, pad_size 1, grid width 1, tile width 16
     conv(d_S1_feature_map_padded, d_C2_1_feature_map, d_conv2_1_weight, d_conv2_1_bias, batch, 18, 64, 128, 3, ceil(16/16), 16);    // input_size 18, input channel 64,  output channel 128, filter size 3, tile size 16
     relu(d_C2_1_feature_map, batch, 128, 16, ceil(16/16), 16);                               // channel 128, input size 16, tile size 16
@@ -162,6 +195,16 @@ void vgg16_cuda::predict(int batch) {
     // test_print_sinhyun(d_S2_feature_map, 128*128*8*8);
 
     //////////BLOCK 3/////////////////////////////////
+    // TODO: Implement pad
+    // TODO: Implement conv3_1
+    // TODO: Implement relu
+    // TODO: Implement pad
+    // TODO: Implement conv3_2
+    // TODO: Implement relu
+    // TODO: Implement pad
+    // TODO: Implement conv3_3
+    // TODO: Implement relu
+    // TODO: Implement pool
     padding(d_S2_feature_map, d_S2_feature_map_padded, batch, 128, 8, 1, ceil(8/8), 8);      // channel 128 ; input_size 8, pad_size 1, grid width 1, tile width 8
     conv(d_S2_feature_map_padded, d_C3_1_feature_map, d_conv3_1_weight, d_conv3_1_bias, batch, 10, 128, 256, 3, ceil(8/8), 8);    // input_size 10, input channel 128,  output channel 256, filter size 3, tile size 8
     relu(d_C3_1_feature_map, batch, 256, 8, ceil(8/8), 8);                               // channel 256, input size 8, tile size 8
@@ -174,7 +217,6 @@ void vgg16_cuda::predict(int batch) {
     pool(d_C3_3_feature_map, d_S3_feature_map , batch, 256, 4, ceil(4/4), 4);   //  input channel 256, output size 4          pooling 후 image size 8 -> 4
     // test_print_sinhyun(d_S3_feature_map, 128*256*4*4);
 
-
     //////////BLOCK 4/////////////////////////////////
     // TODO: Implement pad
     // TODO: Implement conv4_1
@@ -186,8 +228,8 @@ void vgg16_cuda::predict(int batch) {
     // TODO: Implement conv4_3
     // TODO: Implement relu
     // TODO: Implement pool
-    std::cout << "conv4_1_in_channel: " << conv4_1_in_channel << std::endl;
-    std::cout << "conv4_1_out_channel: " << conv4_1_out_channel << std::endl;
+    // std::cout << "conv4_1_in_channel: " << conv4_1_in_channel << std::endl;
+    // std::cout << "conv4_1_out_channel: " << conv4_1_out_channel << std::endl;
     padding(d_S3_feature_map, d_S3_feature_map_padded, batch, 256, 4, 1, ceil(4/4), 4);      // channel 256 ; input_size 4, pad_size 1, grid width 1, tile width 4
     conv(d_S3_feature_map_padded, d_C4_1_feature_map, d_conv4_1_weight, d_conv4_1_bias, batch, 6, 256, 512, 3, ceil(4/4), 4);    // input_size 6, input channel 256,  output channel 512, filter size 3, tile size 4
     relu(d_C4_1_feature_map, batch, 512, 4, ceil(4/4), 4);                               // channel 512, input size 4, tile size 4
@@ -231,65 +273,12 @@ void vgg16_cuda::predict(int batch) {
     conv(d_C5_2_feature_map_padded, d_C5_3_feature_map, d_conv5_3_weight, d_conv5_3_bias, batch, 4, 512, 512, 3, ceil(2/2), 2); // input_size 4, input channel 512, output channel 512, filter size 3, tile size 2
     relu(d_C5_3_feature_map, batch, 512, 2, ceil(2/2), 2);                               // channel 512, input size 2
     pool(d_C5_3_feature_map, d_S5_feature_map , batch, 512, 1, ceil(1/1), 1);   //  input channel 512, output size 2          pooling 후 image size 2 -> 1
-    test_print_sinhyun(d_S5_feature_map, 128*512*1*1);
+    // test_print_sinhyun(d_S5_feature_map, 128*512*1*1);
 
-
-    //////////BLOCK 1/////////////////////////////////
-    // TODO: Implement pad
-    // TODO: Implement conv1_1
-    // TODO: Implement relu
-    // TODO: Implement pad
-    // TODO: Implement conv1_2
-    // TODO: Implement relu
-    // TODO: Implement pool
-  
-    //////////BLOCK 2/////////////////////////////////
-    // TODO: Implement pad
-    // TODO: Implement conv2_1
-    // TODO: Implement relu
-    // TODO: Implement pad
-    // TODO: Implement conv2_2
-    // TODO: Implement relu
-    // TODO: Implement pool
-
-    //////////BLOCK 3/////////////////////////////////
-    // TODO: Implement pad
-    // TODO: Implement conv3_1
-    // TODO: Implement relu
-    // TODO: Implement pad
-    // TODO: Implement conv3_2
-    // TODO: Implement relu
-    // TODO: Implement pad
-    // TODO: Implement conv3_3
-    // TODO: Implement relu
-    // TODO: Implement pool
-
-    //////////BLOCK 4/////////////////////////////////
-    // TODO: Implement pad
-    // TODO: Implement conv4_1
-    // TODO: Implement relu
-    // TODO: Implement pad
-    // TODO: Implement conv4_2
-    // TODO: Implement relu
-    // TODO: Implement pad
-    // TODO: Implement conv4_3
-    // TODO: Implement relu
-    // TODO: Implement pool
-
-    //////////BLOCK 5/////////////////////////////////
-    // TODO: Implement pad
-    // TODO: Implement conv5_1
-    // TODO: Implement relu
-    // TODO: Implement pad
-    // TODO: Implement conv5_2
-    // TODO: Implement relu
-    // TODO: Implement pad
-    // TODO: Implement conv5_3
-    // TODO: Implement relu
-    // TODO: Implement pool
-
-    // TODO: Implement fc1
-    // TODO: Implement relu
+    // std::cout << "fc1_out_channel: " << fc1_out_channel << std::endl;
+    fc(d_S5_feature_map, d_output, d_fc1_weight, d_fc1_bias, batch, fc1_in_channel, fc1_out_channel);
+    relu(d_output, batch, 10, 1, 1, 1);                               // channel 512, input size 2
+    // test_print_sinhyun(d_output, 150);
 
     /* NOTE: unless you want to make a major change to this class structure, 
     *  you need to write your output to the device memory d_output 
