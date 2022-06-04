@@ -1,17 +1,12 @@
 #include "vgg16_cuda.h"
 #include <iostream>
-//batch size fixed by 128
-#define BATCH_SIZE 128
-#define SM_SIZE 1024
-#define CHANNLE 3
-#define INPUT_SIZE 32
-#define PAD_SIZE 1
 
 void test_print_sinhyun(float* test_input, int size){
     float* temp_input = new float[size];
     cudaMemcpy(temp_input, test_input, sizeof(float) * size, cudaMemcpyDeviceToHost);
     int temp_count = 0;
     for (int i = 0 ; i < size ; i ++){
+        // if(i%10==0) std::cout << std::endl;
         std::cout << " " << temp_input[i];
         temp_count ++;
     }
@@ -19,46 +14,36 @@ void test_print_sinhyun(float* test_input, int size){
     std::cout << "temp_count: " << temp_count << std::endl;
 }
 
-// __global__ void normalize_kernel(const uint8_t* const d_image, float* output,int batch, float max_int, float mean, float var){
-//     int tid = blockDim.x * blockIdx.x + threadIdx.x;
-//     output[tid] = (d_image[tid]/max_int - mean) / var;
-// }
-
 __global__ void normalize_kernel(const uint8_t* const image, float* output, int C, int H, int W, int W_grid, int tile_size) {
-
+  
     int b = blockIdx.x; // mini_batch
     int c = blockIdx.y; // input channel
     int h = (blockIdx.z / W_grid)*tile_size + threadIdx.y; // input height
     int w = (blockIdx.z % W_grid)*tile_size + threadIdx.x; // input width 
-
-    // Initialize variables
-    float max = 255.0L;
-    float mean = 0.5L;
-    float var = 0.5L;
-
-    // Normalize
+    float max = 255.0L;    float mean = 0.5L;    float var = 0.5L;
     int base = b * (C * H * W) + c * (H * W) + h * (W) + w;
     output[base] = (image[base]/max - mean) / var;
 }
-
 
 void normalize(const uint8_t* const d_image, float* output, int batch, int channel, int input_size, int W_grid, int tile_size) {
     dim3 dimGrid(batch, channel,1);
     dim3 dimBlock(tile_size, tile_size, 1);
     normalize_kernel<<<dimGrid,dimBlock>>>(d_image, output, channel, input_size, input_size, W_grid, tile_size);
 }
+
 __global__ void padding_kernel(float* intput, float* output, int batch, int channel, int input_size, int pad_size, int W_grid, int tile_size) // input,in_size, output, padsize
 {
     int b = blockIdx.x; 
     int c = blockIdx.y; 
     int h = (blockIdx.z / W_grid)*tile_size + threadIdx.y; 
     int w = (blockIdx.z % W_grid)*tile_size + threadIdx.x; 
-    int H_OUT = input_size+2*pad_size;
-    int W_OUT = input_size+2*pad_size;
+    int h_out = input_size+2*pad_size;
+    int w_out = input_size+2*pad_size;
     int input_index = b * (channel * input_size * input_size) + c * (input_size * input_size) + h * (input_size) + w;
-    int output_index = b * (channel * H_OUT * W_OUT) + c * (H_OUT * W_OUT) + (h+pad_size) * W_OUT + w+pad_size;
+    int output_index = b * (channel * h_out * w_out) + c * (h_out * w_out) + (h+pad_size) * w_out + w+pad_size;
     output[output_index] = intput[input_index];
 }
+
 void padding(float* input, float* output, int batch, int channel, int input_size, int pad_size, int W_grid, int tile_size){
     dim3 dimGrid(batch, channel,1);
     dim3 dimBlock(tile_size, tile_size, 1);
@@ -68,75 +53,76 @@ void padding(float* input, float* output, int batch, int channel, int input_size
 __global__ void conv_kernel(float* input, float* output, float* weight, float* bias, int H, int W, int input_C, int output_C, int filter_size, int W_grid, int tile_size)
 {
     int b = blockIdx.x;  // which image
-    int oc = blockIdx.y; // output channel
+    int c = blockIdx.y; // output channel
     int h = (blockIdx.z / W_grid)*tile_size + threadIdx.y; // which height
     int w = (blockIdx.z % W_grid)*tile_size + threadIdx.x; // which width 
-    int H_OUT = H - (filter_size - 1); 
-    int W_OUT = W - (filter_size - 1); 
-    int output_index = b * (output_C * H_OUT * W_OUT) + oc * (H_OUT * W_OUT) + h * W_OUT + w;
+    int h_out = H - (filter_size - 1); 
+    int w_out = W - (filter_size - 1); 
+    int output_index = b * (output_C * h_out * w_out) + c * (h_out * w_out) + h * w_out + w;
     float val = 0;
     for (int ic=0; ic<input_C; ic++){
         int input_index = b * (input_C * H * W) + ic * (H * W) + h * (W) + w;
-        int kernel_base = oc * (input_C * filter_size * filter_size) + ic * (filter_size * filter_size);
-        val += input[input_index + 0] * weight[kernel_base + 0];
-        val += input[input_index + 1] * weight[kernel_base + 1];
-        val += input[input_index + 2] * weight[kernel_base + 2];
-        val += input[input_index + 1*W + 0] * weight[kernel_base + 1*filter_size];
-        val += input[input_index + 1*W + 1] * weight[kernel_base + 1*filter_size + 1];
-        val += input[input_index + 1*W + 2] * weight[kernel_base + 1*filter_size + 2];0
-        val += input[input_index + 2*W + 0] * weight[kernel_base + 2*filter_size];
-        val += input[input_index + 2*W + 1] * weight[kernel_base + 2*filter_size + 1];
-        val += input[input_index + 2*W + 2] * weight[kernel_base + 2*filter_size + 2];
+        int kernel_index = c * (input_C * filter_size * filter_size) + ic * (filter_size * filter_size);
+        val += input[input_index + 0] * weight[kernel_index + 0];
+        val += input[input_index + 1] * weight[kernel_index + 1];
+        val += input[input_index + 2] * weight[kernel_index + 2];
+        val += input[input_index + 1 * W + 0] * weight[kernel_index + 1 * filter_size];
+        val += input[input_index + 1 * W + 1] * weight[kernel_index + 1 * filter_size + 1];
+        val += input[input_index + 1 * W + 2] * weight[kernel_index + 1 * filter_size + 2];
+        val += input[input_index + 2 * W + 0] * weight[kernel_index + 2 * filter_size];
+        val += input[input_index + 2 * W + 1] * weight[kernel_index + 2 * filter_size + 1];
+        val += input[input_index + 2 * W + 2] * weight[kernel_index + 2 * filter_size + 2];
     }
-    output[output_index] = bias[oc] + val;
+    output[output_index] = bias[c] + val;
 }
 
 void conv(float* input, float* output, float* conv_weight, float* conv_bias,int batch, int input_size, int conv_input_channel, int conv_output_channel, int filter_size, int W_grid, int tile_size){
-    dim3 dimGrid(batch, conv_output_channel, 1); // batch*64*1
+    dim3 dimGrid(batch, conv_output_channel, 1); // batch*channel*1
     dim3 dimBlock(tile_size, tile_size, 1);
     conv_kernel <<< dimGrid, dimBlock >>> (input, output, conv_weight, conv_bias, input_size,
                                     input_size, conv_input_channel, conv_output_channel, filter_size, W_grid, tile_size);
 }
-__global__ void relu_kernel(float* input, int C, int H, int W, int W_grid, int tile_size)
+__global__ void relu_kernel(float* input, int output_C, int input_size, int W_grid, int tile_size)
 {
     int b = blockIdx.x; // mini_batch
     int c = blockIdx.y; // input channel
     int h = (blockIdx.z / W_grid)*tile_size + threadIdx.y; // which height
     int w = (blockIdx.z % W_grid)*tile_size + threadIdx.x; // which width 
-    int input_index = b * (C * H * W) + c * (H * W) + h * (W) + w;
+    int input_index = b * (output_C * input_size * input_size) + c * (input_size * input_size) + h * (input_size) + w;
     input[input_index] = max(input[input_index], (float)(0.0));
 }
 void relu(float* input, int batch, int input_channel, int input_size, int W_grid, int tile_size){
     dim3 dimGrid(batch, input_channel, 1); // batch*64*1
     dim3 dimBlock(tile_size, tile_size, 1);
-    relu_kernel<<<dimGrid, dimBlock>>> (input, input_channel, input_size, input_size, W_grid, tile_size);
+    relu_kernel<<<dimGrid, dimBlock>>> (input, input_channel, input_size, W_grid, tile_size);
 }
 
-__global__ void pool_kernel(float* input, float* output, int C, int H, int W, int W_grid, int tile_size)
+__global__ void pool_kernel(float* input, float* output, int output_C, int input_size, int W_grid, int tile_size)
 {   
     int b = blockIdx.x; // mini_batch
     int c = blockIdx.y; // output channel
     int h = (blockIdx.z / W_grid)*tile_size + threadIdx.y; // output height
     int w = (blockIdx.z % W_grid)*tile_size + threadIdx.x; // output width 
     int pool_kernel_size = 2;
-    int H_pool = H*pool_kernel_size;
-    int W_pool = W*pool_kernel_size;
-    float max_val = -3.4e+38;
-    int input_index = b * (C * H_pool * W_pool) + c * (H_pool * W_pool) + h*pool_kernel_size * (W_pool) + w*pool_kernel_size;
+    int h_pool = input_size*pool_kernel_size;
+    int w_pool = input_size*pool_kernel_size;
+    float max = -3.4e+38;
+    int epsilon = 1.19209e-07;
 
-    // Find maximum
-    for (int sh = 0; sh < pool_kernel_size; sh++)
-        for (int sw = 0; sw < pool_kernel_size; sw++) {
-            float val = input[input_index + sh * (W_pool) + sw];
-            if (val > max_val ) max_val = val;
+    int input_index = b * (output_C * h_pool * w_pool) + c * (h_pool * w_pool) + h*pool_kernel_size * (w_pool) + w*pool_kernel_size;
+
+    for (int kh = 0; kh < pool_kernel_size; kh++)
+        for (int kw = 0; kw < pool_kernel_size; kw++) {
+            float val = input[input_index + kh * (w_pool) + kw];
+            if (val - max > epsilon ) max = val;
         }
-    int output_index = b * (C * H * W) + c * (H * W) + h * (W) + w;
-    output[output_index] = max_val;
+    int output_index = b * (output_C * input_size * input_size) + c * (input_size * input_size) + h * (input_size) + w;
+    output[output_index] = max;
 }
 void pool(float* input, float* output,int batch, int input_channel, int input_size, int W_grid, int tile_size){
     dim3 dimGrid(batch, input_channel, 1); 
     dim3 dimBlock(tile_size, tile_size, 1);
-    pool_kernel<<<dimGrid, dimBlock>>>(input, output, input_channel, input_size,input_size, W_grid, tile_size);
+    pool_kernel<<<dimGrid, dimBlock>>>(input, output, input_channel, input_size, W_grid, tile_size);
 }
 
 __global__ void fc_kernel(float* input, float* output, float* weight, float* bias, int input_C, int output_C)
@@ -160,7 +146,6 @@ void fc(float* input, float* output, float* weight, float* bias, int batch, int 
 
 void vgg16_cuda::predict(int batch) {
     normalize(d_image, d_input, batch, 3, 32, ceil(32/32), 32);        // channel 3 ; input_size 32
-
     //////////BLOCK 1/////////////////////////////////
     // TODO: Implement pad
     // TODO: Implement conv1_1
@@ -266,7 +251,6 @@ void vgg16_cuda::predict(int batch) {
     conv(d_S4_feature_map_padded, d_C5_1_feature_map, d_conv5_1_weight, d_conv5_1_bias, batch, 4, 512, 512, 3, ceil(2/2), 2);    // input_size 4, input channel 512,  output channel 512, filter size 3, tile size 2
     relu(d_C5_1_feature_map, batch, 512, 2, ceil(2/2), 2);                               // channel 512, input size 2, tile size 2
     padding(d_C5_1_feature_map, d_C5_1_feature_map_padded, batch, 512, 2, 1, ceil(2/2), 2);  // channel 512, input_size 2, pad_size 1, grid width 1, tile width 2
-    // test_print_sinhyun(d_S5_feature_map, 128*512*1*1);
     conv(d_C5_1_feature_map_padded, d_C5_2_feature_map, d_conv5_2_weight, d_conv5_2_bias, batch, 4, 512, 512, 3, ceil(2/2), 2); // input_size 4, input channel 512, output channel 512, filter size 3, tile size 2
     relu(d_C5_2_feature_map, batch, 512, 2, ceil(2/2), 2);                               // channel 512, input size 2
     padding(d_C5_2_feature_map, d_C5_2_feature_map_padded, batch, 512, 2, 1, ceil(2/2), 2);  // channel 512, input_size 2, pad_size 1, grid width 1, tile width 2
@@ -275,10 +259,10 @@ void vgg16_cuda::predict(int batch) {
     pool(d_C5_3_feature_map, d_S5_feature_map , batch, 512, 1, ceil(1/1), 1);   //  input channel 512, output size 2          pooling 후 image size 2 -> 1
     // test_print_sinhyun(d_S5_feature_map, 128*512*1*1);
 
-    // std::cout << "fc1_out_channel: " << fc1_out_channel << std::endl;
+    // std::cout << "fc1_in_channel: " << fc1_in_channel << std::endl;
     fc(d_S5_feature_map, d_output, d_fc1_weight, d_fc1_bias, batch, fc1_in_channel, fc1_out_channel);
-    relu(d_output, batch, 10, 1, 1, 1);                               // channel 512, input size 2
-    // test_print_sinhyun(d_output, 150);
+    relu(d_output, batch, 10, 1, 1, 1);                               // 각 128장 image마다 10개씩 결과가 나옴.
+    // test_print_sinhyun(d_output, 128*10);
 
     /* NOTE: unless you want to make a major change to this class structure, 
     *  you need to write your output to the device memory d_output 

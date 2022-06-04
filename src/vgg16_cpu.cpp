@@ -3,11 +3,11 @@
 void vgg16_cpu::predict(const uint8_t* const image, int batch) {
   // ToTensor and Normalize
   normalize(image, input);
-  //=========================test=========================
+
   //////////BLOCK 1/////////////////////////////////
   // ZeroPad2d
   pad(input, input_padded, batch, input_channel, input_size, input_size, conv1_1_padding_size);
-  // Conv2d   
+  // Conv2d
   conv(input_padded, C1_1_feature_map, conv1_1_weight, conv1_1_bias, batch, input_size+2*conv1_1_padding_size,
        input_size+2*conv1_1_padding_size, conv1_1_in_channel, conv1_1_out_channel, conv1_1_kernel_size);
   //       for (int i=0;i<batch;i++){
@@ -21,22 +21,12 @@ void vgg16_cpu::predict(const uint8_t* const image, int batch) {
   relu(C1_1_feature_map, batch * C1_1_channel * C1_1_size * C1_1_size);
   // ZeroPad2d
   pad(C1_1_feature_map, C1_1_feature_map_padded, batch, C1_1_channel, C1_1_size, C1_1_size, conv1_2_padding_size);
-  // int temp_count = 0;
-  // for (int i = 0 ; i < 128*64*34*34 ; i ++){
-  //     std::cout << " " << C1_1_feature_map_padded[i];
-  //     temp_count ++;
-  // }
-  // std::cout << std::endl;
-  // std::cout << "temp_count: " << temp_count << std::endl;
   // Conv2d
   conv(C1_1_feature_map_padded, C1_2_feature_map, conv1_2_weight, conv1_2_bias, batch, C1_1_size+2*conv1_2_padding_size,
        C1_1_size+2*conv1_2_padding_size, conv1_2_in_channel, conv1_2_out_channel, conv1_2_kernel_size);
-  
-
 
   relu(C1_2_feature_map, batch * C1_2_channel * C1_2_size * C1_2_size);
 
-  
   // MaxPool2d
   pool(C1_2_feature_map, S1_feature_map, batch, C1_2_channel, C1_2_size, C1_2_size);
 
