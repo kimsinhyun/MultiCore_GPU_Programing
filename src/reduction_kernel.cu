@@ -145,6 +145,7 @@ __global__ void reduce5(const int* const d_idata, int* const d_odata) {
 		__syncthreads();
 	}
 
+    //tid < 32일 때는 single warp만 남기 때문에 if tid < s가 필요 없음
 	if (tid < 32) {
 		unroll(sdata, tid);
 	}
@@ -303,7 +304,7 @@ void reduce7_switch(int block_num, int blockdim , const int* const d_idata, int*
 void reduce_optimize(const int* const g_idata, int* const g_odata, const int* const d_idata, int* const d_odata, const int n) {
     //============================================================ 1th kernel ============================================================
     // int size = n;
-    // int block_dim = 64;
+    // int block_dim = 256;
     // int block_num = ((size-1) / block_dim) +1; 
     // int final_block_dim = block_dim;
     // if(block_num<=1){
@@ -339,7 +340,7 @@ void reduce_optimize(const int* const g_idata, int* const g_odata, const int* co
 
    //============================================================ 3th kernel ============================================================
     // int size = n;
-    // int block_dim = 128;
+    // int block_dim = 256;
     // int block_num = ((size-1) / block_dim) +1; 
     // int final_block_dim = block_dim;
     // if(block_num<=1){
@@ -359,7 +360,6 @@ void reduce_optimize(const int* const g_idata, int* const g_odata, const int* co
     // int block_dim = 256;
     // int block_num = ((size-1) / block_dim) +1;
     // int final_block_dim = block_dim;
-    // cout << "block_num: " << block_num << endl;
     // if(block_num/2 <= 1){
     //     final_block_dim = size/2;
     //     reduce4<<< 1, final_block_dim, SM_SIZE >>>(d_idata, d_odata);
@@ -368,9 +368,6 @@ void reduce_optimize(const int* const g_idata, int* const g_odata, const int* co
     //     reduce4<<< block_num/2, block_dim, SM_SIZE >>>(d_idata, d_odata);
     //     for (int i = block_num/2 ; i > block_dim; i /=(block_dim*2)){
     //         final_block_dim = i/block_dim/2;
-    //         cout << "i/block_dim: " << i/block_dim << endl;
-    //         cout << "i/block_dim*2: " << i/block_dim*2 << endl;
-    //         cout << "final_block_dim: " << final_block_dim << endl;
     //         reduce4<<< i/block_dim, block_dim, SM_SIZE >>>(d_odata, d_odata);
     //     }
     //     reduce4<<< 1, final_block_dim, SM_SIZE >>>(d_odata, d_odata);
@@ -379,8 +376,66 @@ void reduce_optimize(const int* const g_idata, int* const g_odata, const int* co
  
     //============================================================ 5th kernel ============================================================
     // 마지막 커널을 실행할 때 남아있는 element의 개수가 32보다 작으면 마지막 step은 4번 커널을 실행해야 됨.
+    int size = n;
+    int block_dim = 128;
+    int block_num = ((size-1) / block_dim) +1;
+    int final_block_dim = block_dim;
+    if(block_num/2 <= 1){
+        final_block_dim = size/2;
+        reduce5<<< 1, final_block_dim, SM_SIZE >>>(d_idata, d_odata);
+    }
+    else{
+        reduce5<<< block_num/2, block_dim, SM_SIZE >>>(d_idata, d_odata);
+        for (int i = block_num/2 ; i > block_dim; i /=(block_dim*2)){
+            final_block_dim = i/block_dim/2;
+            reduce5<<< i/block_dim, block_dim, SM_SIZE >>>(d_odata, d_odata);
+        }
+        if(final_block_dim <= 32){
+            reduce4<<< 1, final_block_dim, SM_SIZE >>>(d_odata, d_odata);
+        }
+        else{
+            reduce5<<< 1, final_block_dim, SM_SIZE >>>(d_odata, d_odata);
+        }
+    }
+
+    //============================================================ 6th kernel ============================================================
     // int size = n;
     // int block_dim = 256;
+    // int block_num = ((size-1) / block_dim)/2 +1;
+    // cout << "block_num: " << block_num << endl;
+    // reduce6_switch( block_num, block_dim, d_idata, d_odata);
+    // for (int i = block_num ; i > block_dim; i /=(block_dim)){
+    //     cout << "i: " << i << endl;
+    //     cout << "size/i: " << size/i << endl;
+    //     cout << "block_num: " << block_num << endl;
+    //     reduce6_switch(size/i, block_dim, d_odata, d_odata);
+    // }
+    // reduce6_switch( 1, block_dim, d_odata, d_odata);
+    
+    
+    //============================================================ 7th kernel ============================================================
+    // int size = n;
+    // int block_dim = 256;
+    // int block_num = ((size-1) / block_dim)/64 +1;
+    // cout << "block_num: " << block_num << endl;
+    // reduce7_switch( size/block_num, block_dim, d_idata, d_odata, size);
+    // reduce7_switch( 1, block_dim, d_odata, d_odata, size/block_num);
+
+    //============================================================ test for more size of array ============================================================
+    // unsigned long size = pow(2,18);
+    // cout << "size: " << size << endl;
+    // int * randArray = new int [size];
+    // for(long long int i=0;i<size;i++){
+    //     randArray[i]=1;
+    // }
+    // int sum = 0;
+    // for(int i = 0 ; i < size ; i++){
+    //     sum += randArray[i];
+    // }
+    // cout << "sum: " << sum << endl; 
+    // cudaMemcpyToDevice((void *)d_idata,(void *)randArray, sizeof(int)*size);
+    
+    // int block_dim = 64;
     // int block_num = ((size-1) / block_dim) +1;
     // int final_block_dim = block_dim;
     // cout << "block_num: " << block_num << endl;
@@ -404,60 +459,4 @@ void reduce_optimize(const int* const g_idata, int* const g_odata, const int* co
     //         reduce5<<< 1, final_block_dim, SM_SIZE >>>(d_odata, d_odata);
     //     }
     // }
-
-    //============================================================ 6th kernel ============================================================
-    // int size = n;
-    // int block_dim = 256;
-    // int block_num = ((size-1) / block_dim)/2 +1;
-    // reduce6_switch( block_num, block_dim, d_idata, d_odata);
-    // for (int i = block_num ; i > block_dim; i /=(block_dim)){
-    //     cout << "i: " << i << endl;
-    //     reduce6_switch(size/i, block_dim, d_odata, d_odata);
-    // }
-    // reduce6_switch( 1, block_dim, d_odata, d_odata);
-    
-    
-    //============================================================ 7th kernel ============================================================
-    int size = n;
-    int block_dim = 256;
-    int block_num = ((size-1) / block_dim)/64 +1;
-    cout << "block_num: " << block_num << endl;
-    reduce7_switch( size/block_num, block_dim, d_idata, d_odata, size);
-    reduce7_switch( 1, block_dim, d_odata, d_odata, size/block_num);
-
-    //============================================================ test for more size of array ============================================================
-    // long long int size = pow(2, 23);
-    // cout << "size: " << size << endl;
-    // int * randArray = new int [size];
-    // for(long long int i=0;i<size;i++){
-    //     randArray[i]=1;
-    // }
-    // int sum = 0;
-    // for(int i = 0 ; i < size ; i++){
-    //     sum += randArray[i];
-    // }
-    // cout << "sum: " << sum << endl; 
-    // cudaMemcpyToDevice((void *)d_idata,(void *)randArray, sizeof(int)*size);
-    
-    // int block_dim = 256;
-    // int block_num = ((size-1) / block_dim) +1; 
-    // cout << "block_num: " << block_num << endl; 
-    // int final_block_dim = block_dim;
-    // if(block_num<=1){
-    //     final_block_dim = size;
-    //     reduce1<<< block_num, final_block_dim, SM_SIZE >>>(d_idata, d_odata);
-    // }
-    // else{
-    //     reduce1<<< block_num, block_dim, SM_SIZE >>>(d_idata, d_odata);
-    //     for (int i = block_num ; i >= block_dim; i /=block_dim){
-    //         final_block_dim = i/block_dim;
-    //         cout << "i: " << i << endl; 
-    //         // cout << "i/block_dim: " << i/block_dim << endl; 
-    //         reduce1<<< i/block_dim, block_dim, SM_SIZE >>>(d_odata, d_odata);
-    //     }
-    //     cout << "final_block_dim: " << final_block_dim << endl; 
-    //     reduce1<<< 1, final_block_dim, SM_SIZE >>>(d_odata, d_odata);
-    // }
-    
-
 }
