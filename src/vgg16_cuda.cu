@@ -13,22 +13,35 @@ void test_print_sinhyun(float* test_input, int size){
     std::cout << std::endl;
     std::cout << "temp_count: " << temp_count << std::endl;
 }
+void test_file_write_sinhyun(float* test_input, int size){
+    float* temp_input = new float[size];
+    cudaMemcpy(temp_input, test_input, sizeof(float) * size, cudaMemcpyDeviceToHost);
+    std::ofstream ofile("test_print.txt");
+    int temp_count = 0;
+    if (ofile.is_open()) {
+        for (int i = 0 ; i < size ; i ++){
+            ofile << " " << temp_input[i];
+            temp_count ++;
+        }
+        ofile.close();
+    }
+}
 
-__global__ void normalize_kernel(const uint8_t* const image, float* output, int C, int H, int W, int W_grid, int tile_size) {
+__global__ void normalize_kernel(const uint8_t* const image, float* output, int channel, int input_size, int W_grid, int tile_size) {
   
     int b = blockIdx.x; // mini_batch
     int c = blockIdx.y; // input channel
     int h = (blockIdx.z / W_grid)*tile_size + threadIdx.y; // input height
     int w = (blockIdx.z % W_grid)*tile_size + threadIdx.x; // input width 
     float max = 255.0L;    float mean = 0.5L;    float var = 0.5L;
-    int base = b * (C * H * W) + c * (H * W) + h * (W) + w;
+    int base = b * (channel * input_size * input_size) + c * (input_size * input_size) + h * input_size + w;
     output[base] = (image[base]/max - mean) / var;
 }
 
 void normalize(const uint8_t* const d_image, float* output, int batch, int channel, int input_size, int W_grid, int tile_size) {
     dim3 dimGrid(batch, channel,1);
     dim3 dimBlock(tile_size, tile_size, 1);
-    normalize_kernel<<<dimGrid,dimBlock>>>(d_image, output, channel, input_size, input_size, W_grid, tile_size);
+    normalize_kernel<<<dimGrid,dimBlock>>>(d_image, output, channel, input_size, W_grid, tile_size);
 }
 
 __global__ void padding_kernel(float* intput, float* output, int batch, int channel, int input_size, int pad_size, int W_grid, int tile_size) // input,in_size, output, padsize
@@ -50,37 +63,37 @@ void padding(float* input, float* output, int batch, int channel, int input_size
     padding_kernel<<<dimGrid, dimBlock>>>(input, output, batch, channel, input_size, pad_size, W_grid, tile_size);
 }
 
-__global__ void conv_kernel(float* input, float* output, float* weight, float* bias, int H, int W, int input_C, int output_C, int filter_size, int W_grid, int tile_size)
+__global__ void conv_kernel(float* input, float* output, float* weight, float* bias, int input_size, int input_C, int output_C, int filter_size, int W_grid, int tile_size)
 {
     int b = blockIdx.x;  // which image
     int c = blockIdx.y; // output channel
     int h = (blockIdx.z / W_grid)*tile_size + threadIdx.y; // which height
     int w = (blockIdx.z % W_grid)*tile_size + threadIdx.x; // which width 
-    int h_out = H - (filter_size - 1); 
-    int w_out = W - (filter_size - 1); 
+    int h_out = input_size - (filter_size - 1); 
+    int w_out = input_size - (filter_size - 1); 
     int output_index = b * (output_C * h_out * w_out) + c * (h_out * w_out) + h * w_out + w;
-    float val = 0;
+    float temp = 0;
     for (int ic=0; ic<input_C; ic++){
-        int input_index = b * (input_C * H * W) + ic * (H * W) + h * (W) + w;
+        int input_index = b * (input_C * input_size * input_size) + ic * (input_size * input_size) + h * (input_size) + w;
         int kernel_index = c * (input_C * filter_size * filter_size) + ic * (filter_size * filter_size);
-        val += input[input_index + 0] * weight[kernel_index + 0];
-        val += input[input_index + 1] * weight[kernel_index + 1];
-        val += input[input_index + 2] * weight[kernel_index + 2];
-        val += input[input_index + 1 * W + 0] * weight[kernel_index + 1 * filter_size];
-        val += input[input_index + 1 * W + 1] * weight[kernel_index + 1 * filter_size + 1];
-        val += input[input_index + 1 * W + 2] * weight[kernel_index + 1 * filter_size + 2];
-        val += input[input_index + 2 * W + 0] * weight[kernel_index + 2 * filter_size];
-        val += input[input_index + 2 * W + 1] * weight[kernel_index + 2 * filter_size + 1];
-        val += input[input_index + 2 * W + 2] * weight[kernel_index + 2 * filter_size + 2];
+        temp += input[input_index + 0] * weight[kernel_index + 0];
+        temp += input[input_index + 1] * weight[kernel_index + 1];
+        temp += input[input_index + 2] * weight[kernel_index + 2];
+        temp += input[input_index + 1 * input_size + 0] * weight[kernel_index + 1 * filter_size];
+        temp += input[input_index + 1 * input_size + 1] * weight[kernel_index + 1 * filter_size + 1];
+        temp += input[input_index + 1 * input_size + 2] * weight[kernel_index + 1 * filter_size + 2];
+        temp += input[input_index + 2 * input_size + 0] * weight[kernel_index + 2 * filter_size];
+        temp += input[input_index + 2 * input_size + 1] * weight[kernel_index + 2 * filter_size + 1];
+        temp += input[input_index + 2 * input_size + 2] * weight[kernel_index + 2 * filter_size + 2];
     }
-    output[output_index] = bias[c] + val;
+    output[output_index] = bias[c] + temp;
 }
+
 
 void conv(float* input, float* output, float* conv_weight, float* conv_bias,int batch, int input_size, int conv_input_channel, int conv_output_channel, int filter_size, int W_grid, int tile_size){
     dim3 dimGrid(batch, conv_output_channel, 1); // batch*channel*1
     dim3 dimBlock(tile_size, tile_size, 1);
-    conv_kernel <<< dimGrid, dimBlock >>> (input, output, conv_weight, conv_bias, input_size,
-                                    input_size, conv_input_channel, conv_output_channel, filter_size, W_grid, tile_size);
+    conv_kernel <<< dimGrid, dimBlock >>> (input, output, conv_weight, conv_bias, input_size, conv_input_channel, conv_output_channel, filter_size, W_grid, tile_size);
 }
 __global__ void relu_kernel(float* input, int output_C, int input_size, int W_grid, int tile_size)
 {
@@ -92,29 +105,29 @@ __global__ void relu_kernel(float* input, int output_C, int input_size, int W_gr
     input[input_index] = max(input[input_index], (float)(0.0));
 }
 void relu(float* input, int batch, int input_channel, int input_size, int W_grid, int tile_size){
-    dim3 dimGrid(batch, input_channel, 1); // batch*64*1
+    dim3 dimGrid(batch, input_channel, 1); 
     dim3 dimBlock(tile_size, tile_size, 1);
     relu_kernel<<<dimGrid, dimBlock>>> (input, input_channel, input_size, W_grid, tile_size);
 }
 
 __global__ void pool_kernel(float* input, float* output, int output_C, int input_size, int W_grid, int tile_size)
 {   
-    int b = blockIdx.x; // mini_batch
+    int b = blockIdx.x; // per batch
     int c = blockIdx.y; // output channel
     int h = (blockIdx.z / W_grid)*tile_size + threadIdx.y; // output height
     int w = (blockIdx.z % W_grid)*tile_size + threadIdx.x; // output width 
     int pool_kernel_size = 2;
     int h_pool = input_size*pool_kernel_size;
     int w_pool = input_size*pool_kernel_size;
-    float max = -3.4e+38;
-    int epsilon = 1.19209e-07;
+    float max = -3.4e+38;           //std::numeric_limits<float>::lowest()
+    int epsilon = 1.19209e-07;      //std::numeric_limits<float>::epsilon()
 
     int input_index = b * (output_C * h_pool * w_pool) + c * (h_pool * w_pool) + h*pool_kernel_size * (w_pool) + w*pool_kernel_size;
 
     for (int kh = 0; kh < pool_kernel_size; kh++)
         for (int kw = 0; kw < pool_kernel_size; kw++) {
-            float val = input[input_index + kh * (w_pool) + kw];
-            if (val - max > epsilon ) max = val;
+            float temp = input[input_index + kh * (w_pool) + kw];
+            if (temp - max > epsilon ) max = temp;
         }
     int output_index = b * (output_C * input_size * input_size) + c * (input_size * input_size) + h * (input_size) + w;
     output[output_index] = max;
@@ -130,16 +143,16 @@ __global__ void fc_kernel(float* input, float* output, float* weight, float* bia
     int b = blockIdx.x; // mini batch
     int c = blockIdx.y; // output channel index
 
-    float val = 0;
+    float temp = 0;
     for (int ic=0; ic<input_C; ic++)
-        val += weight[c * input_C + ic] * input[b * input_C + ic];
+        temp += weight[c * input_C + ic] * input[b * input_C + ic];
 
-    output[b * output_C + c] = bias[c] + val;
+    output[b * output_C + c] = bias[c] + temp;
 }
 
 void fc(float* input, float* output, float* weight, float* bias, int batch, int input_C, int output_C){
     dim3 dimGrid(batch, output_C, 1); 
-    dim3 dimBlock(1);
+    dim3 dimBlock(1,1,1);
     fc_kernel<<<dimGrid, dimBlock>>>(input, output, weight, bias,input_C, output_C);
 }
 
@@ -156,9 +169,11 @@ void vgg16_cuda::predict(int batch) {
     // TODO: Implement pool
     padding(d_input,d_input_padded, batch, 3, 32, 1, ceil(32/32), 32); // channel 3 ; input_size 32, pad_size 1, grid width 1, tile width 32
     conv(d_input_padded, d_C1_1_feature_map, d_conv1_1_weight, d_conv1_1_bias, batch, 34, 3, 64, 3, ceil(32/32), 32); // input_size 34, input channel 3, output channel 64, filter size 3
+    // conv_sm(d_input_padded, d_C1_1_feature_map, d_conv1_1_weight, d_conv1_1_bias, batch, 34, 3, 64, 3, ceil(32/32), 32); // input_size 34, input channel 3, output channel 64, filter size 3
     relu(d_C1_1_feature_map, batch, 64, 32, ceil(32/32), 32);            // channel 64, input size 32
     padding(d_C1_1_feature_map, d_C1_1_feature_map_padded, batch, 64, 32, 1, ceil(32/32), 32); // input channel 64, input size 32, pad size 1
     conv(d_C1_1_feature_map_padded, d_C1_2_feature_map, d_conv1_2_weight, d_conv1_2_bias, batch, 34, 64, 64, 3, ceil(32/32), 32); // input_size 34, input channel 64, output channel 64, filter size 3
+    // conv_sm(d_C1_1_feature_map_padded, d_C1_2_feature_map, d_conv1_2_weight, d_conv1_2_bias, batch, 34, 64, 64, 3, ceil(32/32), 32); // input_size 34, input channel 64, output channel 64, filter size 3
     relu(d_C1_2_feature_map, batch, 64, 32, ceil(32/32), 32);            // channel 64, input size 32
     pool(d_C1_2_feature_map, d_S1_feature_map , batch, 64, 16, ceil(16/16), 16); // input channel 64, output size 16       pooling 후 image size 32 -> 16
 
@@ -172,9 +187,11 @@ void vgg16_cuda::predict(int batch) {
     // TODO: Implement pool
     padding(d_S1_feature_map, d_S1_feature_map_padded, batch, 64, 16, 1, ceil(16/16), 16);      // channel 64 ; input_size 16, pad_size 1, grid width 1, tile width 16
     conv(d_S1_feature_map_padded, d_C2_1_feature_map, d_conv2_1_weight, d_conv2_1_bias, batch, 18, 64, 128, 3, ceil(16/16), 16);    // input_size 18, input channel 64,  output channel 128, filter size 3, tile size 16
+    // conv_sm(d_S1_feature_map_padded, d_C2_1_feature_map, d_conv2_1_weight, d_conv2_1_bias, batch, 18, 64, 128, 3, ceil(16/16), 16);    // input_size 18, input channel 64,  output channel 128, filter size 3, tile size 16
     relu(d_C2_1_feature_map, batch, 128, 16, ceil(16/16), 16);                               // channel 128, input size 16, tile size 16
     padding(d_C2_1_feature_map, d_C2_1_feature_map_padded, batch, 128, 16, 1, ceil(16/16), 16);  // channel 128, input_size 16, pad_size 1, grid width 1, tile width 16
     conv(d_C2_1_feature_map_padded, d_C2_2_feature_map, d_conv2_2_weight, d_conv2_2_bias, batch, 18, 128, 128, 3, ceil(16/16), 16); // input_size 18, input channel 128, output channel 128, filter size 3, tile size 16
+    // conv_sm(d_C2_1_feature_map_padded, d_C2_2_feature_map, d_conv2_2_weight, d_conv2_2_bias, batch, 18, 128, 128, 3, ceil(16/16), 16); // input_size 18, input channel 128, output channel 128, filter size 3, tile size 16
     relu(d_C2_2_feature_map, batch, 128, 16, ceil(16/16), 16);           // channel 128, input size 16
     pool(d_C2_2_feature_map, d_S2_feature_map , batch, 128, 8, ceil(8/8), 8);   //  input channel 128, output size 8          pooling 후 image size 16 -> 8
     // test_print_sinhyun(d_S2_feature_map, 128*128*8*8);
@@ -192,12 +209,15 @@ void vgg16_cuda::predict(int batch) {
     // TODO: Implement pool
     padding(d_S2_feature_map, d_S2_feature_map_padded, batch, 128, 8, 1, ceil(8/8), 8);      // channel 128 ; input_size 8, pad_size 1, grid width 1, tile width 8
     conv(d_S2_feature_map_padded, d_C3_1_feature_map, d_conv3_1_weight, d_conv3_1_bias, batch, 10, 128, 256, 3, ceil(8/8), 8);    // input_size 10, input channel 128,  output channel 256, filter size 3, tile size 8
+    // conv_sm(d_S2_feature_map_padded, d_C3_1_feature_map, d_conv3_1_weight, d_conv3_1_bias, batch, 10, 128, 256, 3, ceil(8/8), 8);    // input_size 10, input channel 128,  output channel 256, filter size 3, tile size 8
     relu(d_C3_1_feature_map, batch, 256, 8, ceil(8/8), 8);                               // channel 256, input size 8, tile size 8
     padding(d_C3_1_feature_map, d_C3_1_feature_map_padded, batch, 256, 8, 1, ceil(8/8), 8);  // channel 256, input_size 8, pad_size 1, grid width 1, tile width 8
     conv(d_C3_1_feature_map_padded, d_C3_2_feature_map, d_conv3_2_weight, d_conv3_2_bias, batch, 10, 256, 256, 3, ceil(8/8), 8); // input_size 10, input channel 256, output channel 256, filter size 3, tile size 8
+    // conv_sm(d_C3_1_feature_map_padded, d_C3_2_feature_map, d_conv3_2_weight, d_conv3_2_bias, batch, 10, 256, 256, 3, ceil(8/8), 8); // input_size 10, input channel 256, output channel 256, filter size 3, tile size 8
     relu(d_C3_2_feature_map, batch, 256, 8, ceil(8/8), 8);                               // channel 256, input size 8
     padding(d_C3_2_feature_map, d_C3_2_feature_map_padded, batch, 256, 8, 1, ceil(8/8), 8);  // channel 256, input_size 8, pad_size 1, grid width 1, tile width 8
     conv(d_C3_2_feature_map_padded, d_C3_3_feature_map, d_conv3_3_weight, d_conv3_3_bias, batch, 10, 256, 256, 3, ceil(8/8), 8); // input_size 10, input channel 256, output channel 256, filter size 3, tile size 8
+    // conv_sm(d_C3_2_feature_map_padded, d_C3_3_feature_map, d_conv3_3_weight, d_conv3_3_bias, batch, 10, 256, 256, 3, ceil(8/8), 8); // input_size 10, input channel 256, output channel 256, filter size 3, tile size 8
     relu(d_C3_3_feature_map, batch, 256, 8, ceil(8/8), 8);                               // channel 256, input size 8
     pool(d_C3_3_feature_map, d_S3_feature_map , batch, 256, 4, ceil(4/4), 4);   //  input channel 256, output size 4          pooling 후 image size 8 -> 4
     // test_print_sinhyun(d_S3_feature_map, 128*256*4*4);
@@ -217,12 +237,15 @@ void vgg16_cuda::predict(int batch) {
     // std::cout << "conv4_1_out_channel: " << conv4_1_out_channel << std::endl;
     padding(d_S3_feature_map, d_S3_feature_map_padded, batch, 256, 4, 1, ceil(4/4), 4);      // channel 256 ; input_size 4, pad_size 1, grid width 1, tile width 4
     conv(d_S3_feature_map_padded, d_C4_1_feature_map, d_conv4_1_weight, d_conv4_1_bias, batch, 6, 256, 512, 3, ceil(4/4), 4);    // input_size 6, input channel 256,  output channel 512, filter size 3, tile size 4
+    // conv_sm(d_S3_feature_map_padded, d_C4_1_feature_map, d_conv4_1_weight, d_conv4_1_bias, batch, 6, 256, 512, 3, ceil(4/4), 4);    // input_size 6, input channel 256,  output channel 512, filter size 3, tile size 4
     relu(d_C4_1_feature_map, batch, 512, 4, ceil(4/4), 4);                               // channel 512, input size 4, tile size 4
     padding(d_C4_1_feature_map, d_C4_1_feature_map_padded, batch, 512, 4, 1, ceil(4/4), 4);  // channel 512, input_size 4, pad_size 1, grid width 1, tile width 4
     conv(d_C4_1_feature_map_padded, d_C4_2_feature_map, d_conv4_2_weight, d_conv4_2_bias, batch, 6, 512, 512, 3, ceil(4/4), 4); // input_size 6, input channel 512, output channel 512, filter size 3, tile size 4
+    // conv_sm(d_C4_1_feature_map_padded, d_C4_2_feature_map, d_conv4_2_weight, d_conv4_2_bias, batch, 6, 512, 512, 3, ceil(4/4), 4); // input_size 6, input channel 512, output channel 512, filter size 3, tile size 4
     relu(d_C4_2_feature_map, batch, 512, 4, ceil(4/4), 4);                               // channel 512, input size 4
     padding(d_C4_2_feature_map, d_C4_2_feature_map_padded, batch, 512, 4, 1, ceil(4/4), 4);  // channel 512, input_size 4, pad_size 1, grid width 1, tile width 4
     conv(d_C4_2_feature_map_padded, d_C4_3_feature_map, d_conv4_3_weight, d_conv4_3_bias, batch, 6, 512, 512, 3, ceil(4/4), 4); // input_size 6, input channel 512, output channel 512, filter size 3, tile size 4
+    // conv_sm(d_C4_2_feature_map_padded, d_C4_3_feature_map, d_conv4_3_weight, d_conv4_3_bias, batch, 6, 512, 512, 3, ceil(4/4), 4); // input_size 6, input channel 512, output channel 512, filter size 3, tile size 4
     relu(d_C4_3_feature_map, batch, 512, 4, ceil(4/4), 4);                               // channel 512, input size 4
     pool(d_C4_3_feature_map, d_S4_feature_map , batch, 512, 2, ceil(2/2), 2);   //  input channel 512, output size 2          pooling 후 image size 8 -> 4
     // test_print_sinhyun(d_S4_feature_map, 128*512*2*2);
@@ -261,7 +284,8 @@ void vgg16_cuda::predict(int batch) {
 
     // std::cout << "fc1_in_channel: " << fc1_in_channel << std::endl;
     fc(d_S5_feature_map, d_output, d_fc1_weight, d_fc1_bias, batch, fc1_in_channel, fc1_out_channel);
-    relu(d_output, batch, 10, 1, 1, 1);                               // 각 128장 image마다 10개씩 결과가 나옴.
+    // test_file_write_sinhyun(d_S5_feature_map, batch*512*1*1);
+    // relu(d_output, batch, 10, 1, 1, 1);                               // 각 128장 image마다 10개씩 결과가 나옴.
     // test_print_sinhyun(d_output, 128*10);
 
     /* NOTE: unless you want to make a major change to this class structure, 
